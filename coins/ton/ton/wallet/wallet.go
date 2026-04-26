@@ -1,7 +1,3 @@
-/**
-Author： https://github.com/xssnick/tonutils-go
-*/
-
 package wallet
 
 import (
@@ -26,6 +22,7 @@ type Version int
 // Network IDs
 const MainnetGlobalID = -239
 const TestnetGlobalID = -3
+
 const (
 	V1R1               Version = 11
 	V1R2               Version = 12
@@ -258,7 +255,6 @@ func getSpec(w *Wallet) (any, error) {
 			}
 			return uint32(iSeq.Uint64()), nil
 		}*/
-
 		switch x := w.ver.(type) {
 		case ConfigV5R1Final:
 			if x.NetworkGlobalID == 0 {
@@ -486,6 +482,55 @@ func (w *Wallet) PrepareInternalMessageForMany(ctx context.Context, to *address.
 
 }
 
+func (w *Wallet) BuildMessageUnsigned(ctx context.Context, messages []*Message, initialized bool) (payload *cell.Builder, err error) {
+
+	switch v := w.ver.(type) {
+	case Version, ConfigV5R1Final:
+		switch v.(type) {
+		case ConfigV5R1Final:
+			v = V5R1Final
+		}
+		switch v {
+		case V3R2, V3R1, V4R2, V4R1, V5R1Final:
+			payload, err = w.spec.(RegularBuilder).BuildMessageUnsigned(ctx, false, initialized, messages)
+			if err != nil {
+				return nil, fmt.Errorf("build message err: %w", err)
+			}
+		}
+	}
+	return
+}
+
+func (w *Wallet) BuildMessageWithSignature(ctx context.Context, payload *cell.Builder, signature []byte, initialized bool) (_ *tlb.ExternalMessage, err error) {
+	var stateInit *tlb.StateInit
+	if !initialized {
+		stateInit, err = GetStateInit(w.PublicKey(), w.ver, w.subwallet)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get state init: %w", err)
+		}
+	}
+	var msg *cell.Cell
+	switch v := w.ver.(type) {
+	case Version, ConfigV5R1Final:
+		switch v.(type) {
+		case ConfigV5R1Final:
+			v = V5R1Final
+		}
+		switch v {
+		case V3R2, V3R1, V4R2, V4R1, V5R1Final:
+			msg, err = w.spec.(RegularBuilder).BuildMessageWithSignature(ctx, false, initialized /*nil, */, payload, signature)
+			if err != nil {
+				return nil, fmt.Errorf("build message err: %w", err)
+			}
+		}
+	}
+	return &tlb.ExternalMessage{
+		DstAddr:   w.addr,
+		StateInit: stateInit,
+		Body:      msg,
+	}, nil
+}
+
 func TryParseBase64(body string) ([]byte, error) {
 	if b, errStd := base64.StdEncoding.DecodeString(body); errStd == nil && len(b) > 0 {
 		return b, nil
@@ -514,7 +559,7 @@ func TryParseCell(body string) (*cell.Cell, error) {
 	return bd, nil
 }
 
-func (w *Wallet) BuildTransferByBody(to *address.Address, amount tlb.Coins, body, stateInit string) (*Message, error) {
+func (w *Wallet) BuildTransferByBody(to *address.Address, amount tlb.Coins, body, stateInit string, extraFlags tlb.Coins) (*Message, error) {
 	var err error
 	var bd *cell.Cell
 	if body != "" {
@@ -556,6 +601,7 @@ func (w *Wallet) BuildTransferByBody(to *address.Address, amount tlb.Coins, body
 			Amount:      amount,
 			Body:        bd,
 			StateInit:   in,
+			IHRFee:      extraFlags, // TEP 503
 		},
 	}, nil
 }

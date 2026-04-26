@@ -2,9 +2,10 @@ package ton
 
 import (
 	"errors"
-	"github.com/okx/go-wallet-sdk/coins/ton/address"
 	"math/big"
 	"time"
+
+	"github.com/okx/go-wallet-sdk/coins/ton/address"
 )
 
 const (
@@ -18,10 +19,11 @@ var (
 )
 
 type Msg struct {
-	Address   string `json:"address"`
-	Amount    string `json:"amount"`
-	Payload   string `json:"payload"`
-	StateInit string `json:"stateInit"`
+	Address    string `json:"address"`
+	Amount     string `json:"amount"`
+	Payload    string `json:"payload"`
+	StateInit  string `json:"stateInit"`
+	ExtraFlags string `json:"extraFlags"`
 }
 
 func (s *Msg) Check() error {
